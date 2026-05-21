@@ -27,8 +27,20 @@ api.get('/init', async (c) => {
     return c.json<ErrorResponse>({ status: 'error', message: 'postId is required but missing from context' }, 400);
   }
   try {
-    const [count, username] = await Promise.all([redis.get('count'), reddit.getCurrentUsername()]);
-    return c.json<InitResponse>({ type: 'init', postId, count: count ? parseInt(count) : 0, username: username ?? 'anonymous' });
+    const [count, username, targetRaw] = await Promise.all([
+      redis.get('count'),
+      reddit.getCurrentUsername(),
+      redis.get(`verdict_target_${postId}`),
+    ]);
+    const target = targetRaw ? JSON.parse(targetRaw) : null;
+    return c.json<InitResponse>({
+      type: 'init',
+      postId,
+      count: count ? parseInt(count) : 0,
+      username: username ?? 'anonymous',
+      targetId: target?.targetId ?? null,
+      targetType: target?.targetType ?? null,
+    });
   } catch (error) {
     return c.json<ErrorResponse>({ status: 'error', message: `Initialization failed: ${error}` }, 400);
   }

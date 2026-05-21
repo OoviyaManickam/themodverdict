@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { UiResponse } from '@devvit/web/shared';
-import { context, reddit } from '@devvit/web/server';
+import { context, redis, reddit } from '@devvit/web/server';
 import { createPost } from '../core/post';
 
 export const menu = new Hono();
@@ -21,7 +21,6 @@ menu.post('/verdict', async (c) => {
     const targetType = location === 'post' ? 'post' : 'comment';
     const subredditName = context.subredditName!;
 
-    // Get the author username to use as the post title
     let authorUsername = 'unknown';
     try {
       const target = targetType === 'post'
@@ -34,14 +33,13 @@ menu.post('/verdict', async (c) => {
     const post = await reddit.submitCustomPost({
       title: `Verdict — u/${authorUsername}`,
       subredditName,
-      preview: {
-        type: 'text',
-        text: 'Loading Verdict...',
-      },
     });
 
+    // Store targetId and targetType in Redis keyed by the verdict post ID
+    await redis.set(`verdict_target_${post.id}`, JSON.stringify({ targetId, targetType }));
+
     return c.json<UiResponse>(
-      { navigateTo: `https://reddit.com/r/${subredditName}/comments/${post.id}?targetId=${targetId}&targetType=${targetType}` },
+      { navigateTo: `https://reddit.com/r/${subredditName}/comments/${post.id}` },
       200
     );
   } catch (error) {
