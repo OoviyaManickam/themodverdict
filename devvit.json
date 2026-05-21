@@ -20,18 +20,18 @@
   "menu": {
     "items": [
       {
-        "label": "Create a new post",
-        "description": "themodverdict",
-        "location": "subreddit",
+        "label": "Get Verdict",
+        "description": "Surface decision-quality context on this user instantly",
+        "location": "post",
         "forUserType": "moderator",
-        "endpoint": "/internal/menu/post-create"
+        "endpoint": "/internal/menu/verdict"
       },
       {
-        "label": "Example form",
-        "description": "Show a simple form",
-        "location": "subreddit",
+        "label": "Get Verdict",
+        "description": "Surface decision-quality context on this user instantly",
+        "location": "comment",
         "forUserType": "moderator",
-        "endpoint": "/internal/menu/example-form"
+        "endpoint": "/internal/menu/verdict"
       }
     ]
   },
