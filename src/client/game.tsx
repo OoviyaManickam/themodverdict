@@ -2,8 +2,6 @@ import './index.css';
 import { StrictMode, useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { VerdictData, VerdictActionRequest } from '../shared/api';
-
-const RISK_COLORS = {
   high: { bg: 'bg-red-950', border: 'border-red-500', text: 'text-red-400', badge: 'bg-red-500' },
   medium: { bg: 'bg-yellow-950', border: 'border-yellow-500', text: 'text-yellow-400', badge: 'bg-yellow-500' },
   low: { bg: 'bg-green-950', border: 'border-green-500', text: 'text-green-400', badge: 'bg-green-500' },
