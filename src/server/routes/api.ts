@@ -86,11 +86,11 @@ api.get('/verdict', async (c) => {
     const author = await reddit.getUserById(authorId);
     const username = author.username;
 
-    // Fetch all data in parallel
+    // Fetch all data in parallel — each wrapped to avoid one failure killing all
     const [recentPosts, modLog, modNotes] = await Promise.all([
-      reddit.getPostsByUser({ username, subredditName, limit: 25 }).all(),
-      reddit.getModerationLog({ subredditName, moderatorUsernames: [], limit: 25 }).all(),
-      reddit.getModNotes({ subredditName, username }).all(),
+      reddit.getPostsByUser({ username, subredditName, limit: 25 }).all().catch(() => []),
+      reddit.getModerationLog({ subredditName, limit: 25 }).all().catch(() => []),
+      reddit.getModNotes({ subredditName, redditorName: username }).all().catch(() => []),
     ]);
 
     // --- User signals ---
@@ -127,7 +127,10 @@ api.get('/verdict', async (c) => {
     };
 
     // --- Mod history (filtered to this user, deduplicated) ---
-    const userModActions = modLog.filter((entry) => entry.target?.author === username);
+    const userModActions = modLog.filter((entry) => {
+      const target = (entry as any).target;
+      return target?.author === username || target?.authorName === username;
+    });
     const seen = new Set<string>();
     const modHistory: ModHistoryEntry[] = [];
     for (const entry of userModActions) {
@@ -147,9 +150,9 @@ api.get('/verdict', async (c) => {
     for (const note of modNotes) {
       modHistory.push({
         action: 'note',
-        date: new Date(note.createdAt).toLocaleDateString(),
-        description: note.note ?? '',
-        mod: note.operator?.name ?? 'unknown',
+        date: new Date((note as any).createdAt ?? Date.now()).toLocaleDateString(),
+        description: (note as any).note ?? (note as any).label ?? '',
+        mod: (note as any).operator?.name ?? (note as any).moderatorName ?? 'unknown',
       });
     }
 
