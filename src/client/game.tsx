@@ -1,7 +1,9 @@
 import './index.css';
 import { StrictMode, useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import type { VerdictData, VerdictActionRequest } from '../shared/api';
+import type { VerdictData, VerdictActionRequest, InitResponse } from '../shared/api';
+
+const RISK_COLORS = {
   high: { bg: 'bg-red-950', border: 'border-red-500', text: 'text-red-400', badge: 'bg-red-500' },
   medium: { bg: 'bg-yellow-950', border: 'border-yellow-500', text: 'text-yellow-400', badge: 'bg-yellow-500' },
   low: { bg: 'bg-green-950', border: 'border-green-500', text: 'text-green-400', badge: 'bg-green-500' },
@@ -19,13 +21,6 @@ const ACTION_LABELS: Record<string, string> = {
   addnote: 'Note Added',
   note: 'Note',
 };
-
-function getParams(): { targetId: string | null; targetType: 'post' | 'comment' } {
-  const params = new URLSearchParams(window.location.search);
-  const targetId = params.get('targetId');
-  const targetType = (params.get('targetType') ?? 'post') as 'post' | 'comment';
-  return { targetId, targetType };
-}
 
 function RiskBadge({ level }: { level: 'low' | 'medium' | 'high' }) {
   const colors = RISK_COLORS[level];
@@ -46,9 +41,7 @@ function StatPill({ label, value, highlight }: { label: string; value: string | 
 }
 
 function SectionHeader({ title }: { title: string }) {
-  return (
-    <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">{title}</h2>
-  );
+  return <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">{title}</h2>;
 }
 
 export const App = () => {
@@ -59,33 +52,38 @@ export const App = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'history'>('overview');
 
-  const { targetId, targetType } = getParams();
-
   useEffect(() => {
-    if (!targetId) {
-      setError('No target specified. Open Verdict from a post or comment menu.');
-      setLoading(false);
-      return;
-    }
-    fetch(`/api/verdict?targetId=${targetId}&targetType=${targetType}`)
+    // Step 1: get postId + stored targetId from init
+    fetch('/api/init')
       .then((r) => r.json())
-      .then((data) => {
-        if (data.type === 'verdict') setVerdict(data.data);
-        else setError(data.message ?? 'Failed to load verdict');
+      .then((init: InitResponse) => {
+        const { targetId, targetType } = init;
+        if (!targetId || !targetType) {
+          setError('No target specified. Open Verdict from a post or comment menu.');
+          setLoading(false);
+          return;
+        }
+        // Step 2: fetch the actual verdict data
+        return fetch(`/api/verdict?targetId=${targetId}&targetType=${targetType}`)
+          .then((r) => r.json())
+          .then((data) => {
+            if (data.type === 'verdict') setVerdict(data.data);
+            else setError(data.message ?? 'Failed to load verdict');
+          });
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
-  }, [targetId, targetType]);
+  }, []);
 
   const takeAction = async (action: VerdictActionRequest['action'], note?: string) => {
-    if (!targetId || !verdict) return;
+    if (!verdict) return;
     setActionLoading(true);
     setActionStatus(null);
     try {
       const res = await fetch('/api/verdict/action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetId, action, note } satisfies VerdictActionRequest),
+        body: JSON.stringify({ targetId: verdict.targetId, action, note } satisfies VerdictActionRequest),
       });
       const data = await res.json();
       setActionStatus(data.message);
@@ -133,7 +131,7 @@ export const App = () => {
       {/* Reported content */}
       {targetContent && (
         <div className="mx-5 mt-4 px-4 py-3 bg-gray-800 rounded-xl border border-gray-700">
-          <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Reported {targetType}</p>
+          <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Reported {verdict.targetType}</p>
           <p className="text-sm text-gray-200 line-clamp-3">{targetContent}</p>
           {reportReasons.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-2">
@@ -164,9 +162,13 @@ export const App = () => {
       {activeTab === 'overview' && (
         <div className="px-5 mt-5 space-y-5">
           <div>
-            <SectionHeader title="u/{userSignals.username}" />
+            <SectionHeader title={`u/${userSignals.username}`} />
             <div className="grid grid-cols-3 gap-3">
-              <StatPill label="Account Age" value={userSignals.accountAgeDays < 30 ? `${userSignals.accountAgeDays}d` : `${Math.floor(userSignals.accountAgeDays / 30)}mo`} highlight={userSignals.accountAgeDays < 7} />
+              <StatPill
+                label="Account Age"
+                value={userSignals.accountAgeDays < 30 ? `${userSignals.accountAgeDays}d` : `${Math.floor(userSignals.accountAgeDays / 30)}mo`}
+                highlight={userSignals.accountAgeDays < 7}
+              />
               <StatPill label="Recent Posts" value={userSignals.recentPostCount} />
               <StatPill label="Removal Rate" value={`${userSignals.removalRate}%`} highlight={userSignals.removalRate >= 50} />
             </div>
@@ -201,7 +203,6 @@ export const App = () => {
             )}
           </div>
 
-          {/* Reporter signals */}
           {reporters.length > 0 && (
             <div>
               <SectionHeader title="Reporter Reliability" />
@@ -261,38 +262,26 @@ export const App = () => {
         </div>
       )}
 
-      {/* Action bar — fixed at bottom */}
+      {/* Fixed action bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-800 px-5 py-4">
         {actionStatus && (
           <p className="text-xs text-center text-orange-400 mb-3">{actionStatus}</p>
         )}
         <div className="grid grid-cols-4 gap-2">
-          <button
-            onClick={() => takeAction('approve')}
-            disabled={actionLoading}
-            className="py-2 rounded-lg text-sm font-semibold bg-green-800 hover:bg-green-700 text-green-200 transition-colors disabled:opacity-50"
-          >
+          <button onClick={() => takeAction('approve')} disabled={actionLoading}
+            className="py-2 rounded-lg text-sm font-semibold bg-green-800 hover:bg-green-700 text-green-200 transition-colors disabled:opacity-50">
             Approve
           </button>
-          <button
-            onClick={() => takeAction('remove')}
-            disabled={actionLoading}
-            className="py-2 rounded-lg text-sm font-semibold bg-red-900 hover:bg-red-800 text-red-200 transition-colors disabled:opacity-50"
-          >
+          <button onClick={() => takeAction('remove')} disabled={actionLoading}
+            className="py-2 rounded-lg text-sm font-semibold bg-red-900 hover:bg-red-800 text-red-200 transition-colors disabled:opacity-50">
             Remove
           </button>
-          <button
-            onClick={() => takeAction('mute')}
-            disabled={actionLoading}
-            className="py-2 rounded-lg text-sm font-semibold bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors disabled:opacity-50"
-          >
+          <button onClick={() => takeAction('mute')} disabled={actionLoading}
+            className="py-2 rounded-lg text-sm font-semibold bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors disabled:opacity-50">
             Mute
           </button>
-          <button
-            onClick={() => takeAction('ban', `Verdict: ${summary.plainEnglish}`)}
-            disabled={actionLoading}
-            className="py-2 rounded-lg text-sm font-semibold bg-orange-900 hover:bg-orange-800 text-orange-200 transition-colors disabled:opacity-50"
-          >
+          <button onClick={() => takeAction('ban', `Verdict: ${summary.plainEnglish}`)} disabled={actionLoading}
+            className="py-2 rounded-lg text-sm font-semibold bg-orange-900 hover:bg-orange-800 text-orange-200 transition-colors disabled:opacity-50">
             Ban
           </button>
         </div>
