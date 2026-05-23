@@ -3,12 +3,6 @@ import { StrictMode, useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { VerdictData, VerdictActionRequest, InitResponse } from '../shared/api';
 
-const RISK_COLORS = {
-  high: { bg: 'bg-red-950', border: 'border-red-500', text: 'text-red-400', badge: 'bg-red-500' },
-  medium: { bg: 'bg-yellow-950', border: 'border-yellow-500', text: 'text-yellow-400', badge: 'bg-yellow-500' },
-  low: { bg: 'bg-green-950', border: 'border-green-500', text: 'text-green-400', badge: 'bg-green-500' },
-};
-
 const ACTION_LABELS: Record<string, string> = {
   removelink: 'Post Removed',
   removecomment: 'Comment Removed',
@@ -22,27 +16,19 @@ const ACTION_LABELS: Record<string, string> = {
   note: 'Note',
 };
 
-function RiskBadge({ level }: { level: 'low' | 'medium' | 'high' }) {
-  const colors = RISK_COLORS[level];
-  return (
-    <span className={`inline-block px-3 py-1 rounded-full text-white text-sm font-bold uppercase tracking-wider ${colors.badge}`}>
-      {level} risk
-    </span>
-  );
-}
+const riskColor = (level: string) => {
+  if (level === 'high') return { bg: '#1a0000', border: '#ef4444', text: '#fca5a5', badge: '#ef4444' };
+  if (level === 'medium') return { bg: '#1a1500', border: '#eab308', text: '#fde68a', badge: '#ca8a04' };
+  return { bg: '#001a00', border: '#22c55e', text: '#86efac', badge: '#16a34a' };
+};
 
-function StatPill({ label, value, highlight }: { label: string; value: string | number; highlight?: boolean }) {
-  return (
-    <div className={`flex flex-col items-center px-4 py-3 rounded-xl ${highlight ? 'bg-red-900 border border-red-600' : 'bg-gray-800'}`}>
-      <span className={`text-xl font-bold ${highlight ? 'text-red-300' : 'text-white'}`}>{value}</span>
-      <span className="text-xs text-gray-400 mt-1">{label}</span>
-    </div>
-  );
-}
-
-function SectionHeader({ title }: { title: string }) {
-  return <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">{title}</h2>;
-}
+const actionIcon = (action: string | undefined) => {
+  const a = action ?? '';
+  if (a.includes('ban')) return '🔨';
+  if (a.includes('remove')) return '🗑️';
+  if (a.includes('approve')) return '✅';
+  return '📝';
+};
 
 export const App = () => {
   const [verdict, setVerdict] = useState<VerdictData | null>(null);
@@ -50,10 +36,8 @@ export const App = () => {
   const [error, setError] = useState<string | null>(null);
   const [actionStatus, setActionStatus] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'history'>('overview');
 
   useEffect(() => {
-    // Step 1: get postId + stored targetId from init
     fetch('/api/init')
       .then((r) => r.json())
       .then((init: InitResponse) => {
@@ -63,7 +47,6 @@ export const App = () => {
           setLoading(false);
           return;
         }
-        // Step 2: fetch the actual verdict data
         return fetch(`/api/verdict?targetId=${targetId}&targetType=${targetType}`)
           .then((r) => r.json())
           .then((data) => {
@@ -83,7 +66,7 @@ export const App = () => {
       const res = await fetch('/api/verdict/action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetId: verdict.targetId, action, note } satisfies VerdictActionRequest),
+        body: JSON.stringify({ targetId: verdict.targetId, action, note }),
       });
       const data = await res.json();
       setActionStatus(data.message);
@@ -94,196 +77,156 @@ export const App = () => {
     }
   };
 
+  const wrap: React.CSSProperties = { background: '#030712', color: '#f3f4f6', minHeight: '100vh', paddingBottom: '80px', fontFamily: 'system-ui, sans-serif' };
+
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-950 text-gray-400 gap-4">
-        <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-sm">Assembling verdict...</p>
+      <div style={{ ...wrap, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ width: '36px', height: '36px', border: '4px solid #ea580c', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        <p style={{ color: '#9ca3af', fontSize: '14px', margin: 0 }}>Assembling verdict...</p>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
 
   if (error || !verdict) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-950 text-red-400 gap-3 px-6">
-        <p className="text-lg font-bold">Could not load Verdict</p>
-        <p className="text-sm text-center text-gray-500">{error}</p>
+      <div style={{ ...wrap, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '12px', padding: '24px' }}>
+        <p style={{ color: '#f87171', fontSize: '18px', fontWeight: 'bold', margin: 0 }}>Could not load Verdict</p>
+        <p style={{ color: '#6b7280', fontSize: '13px', textAlign: 'center', margin: 0 }}>{error ?? 'verdict is null'}</p>
       </div>
     );
   }
 
-  const { userSignals, modHistory, summary, reporters, targetContent, reportReasons } = verdict;
-  const colors = RISK_COLORS[summary.riskLevel];
+  const { userSignals, modHistory, summary, targetContent } = verdict;
+  const c = riskColor(summary.riskLevel);
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 pb-32">
+    <div style={wrap}>
 
       {/* Header */}
-      <div className={`px-5 pt-6 pb-5 border-b-2 ${colors.border} ${colors.bg}`}>
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-xs font-mono text-gray-500 uppercase tracking-widest">Verdict</span>
-          <RiskBadge level={summary.riskLevel} />
+      <div style={{ padding: '20px 16px 16px', borderBottom: `2px solid ${c.border}`, background: c.bg }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+          <span style={{ fontSize: '11px', color: '#6b7280', letterSpacing: '2px' }}>VERDICT</span>
+          <span style={{ padding: '4px 12px', borderRadius: '999px', background: c.badge, color: 'white', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase' }}>
+            {summary.riskLevel} risk
+          </span>
         </div>
-        <p className="text-base font-semibold text-white leading-snug">{summary.plainEnglish}</p>
-        <p className={`text-xs mt-2 ${colors.text}`}>Driven by: {summary.riskReason}</p>
+        <p style={{ fontSize: '15px', fontWeight: '600', color: 'white', margin: '0 0 6px' }}>{summary.plainEnglish}</p>
+        <p style={{ fontSize: '12px', color: c.text, margin: 0 }}>Driven by: {summary.riskReason}</p>
       </div>
 
       {/* Reported content */}
       {targetContent && (
-        <div className="mx-5 mt-4 px-4 py-3 bg-gray-800 rounded-xl border border-gray-700">
-          <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Reported {verdict.targetType}</p>
-          <p className="text-sm text-gray-200 line-clamp-3">{targetContent}</p>
-          {reportReasons.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-2">
-              {reportReasons.map((r, i) => (
-                <span key={i} className="text-xs bg-gray-700 text-gray-300 px-2 py-0.5 rounded-full">{r}</span>
-              ))}
-            </div>
-          )}
+        <div style={{ margin: '12px 16px 0', padding: '12px', background: '#1f2937', borderRadius: '12px', border: '1px solid #374151' }}>
+          <p style={{ fontSize: '11px', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '1px', margin: '0 0 6px' }}>Reported {verdict.targetType}</p>
+          <p style={{ fontSize: '13px', color: '#e5e7eb', margin: 0 }}>{targetContent}</p>
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="flex mx-5 mt-5 gap-2">
-        {(['overview', 'history'] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
-              activeTab === tab ? 'bg-orange-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-            }`}
-          >
-            {tab === 'overview' ? 'User Signals' : `Mod History (${modHistory.length})`}
-          </button>
-        ))}
+      {/* User signals */}
+      <div style={{ padding: '16px' }}>
+        <p style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '2px', margin: '0 0 10px' }}>u/{userSignals.username}</p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+          {[
+            { label: 'Account Age', value: userSignals.accountAgeDays === 0 ? '<1d' : userSignals.accountAgeDays < 30 ? `${userSignals.accountAgeDays}d` : userSignals.accountAgeDays < 365 ? `${Math.floor(userSignals.accountAgeDays / 30)}mo` : `${(userSignals.accountAgeDays / 365).toFixed(1)}yr`, alert: userSignals.accountAgeDays < 7 },
+            { label: 'Recent Posts', value: userSignals.recentPostCount, alert: false },
+            { label: 'Removal Rate', value: `${userSignals.removalRate}%`, alert: userSignals.removalRate >= 50 },
+          ].map((s, i) => (
+            <div key={i} style={{ background: s.alert ? '#450a0a' : '#1f2937', border: `1px solid ${s.alert ? '#dc2626' : '#374151'}`, borderRadius: '12px', padding: '12px', textAlign: 'center' }}>
+              <div style={{ fontSize: '20px', fontWeight: 'bold', color: s.alert ? '#fca5a5' : 'white' }}>{s.value}</div>
+              <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+          {[
+            { label: 'Removed', value: userSignals.recentRemovalCount, alert: userSignals.recentRemovalCount >= 3 },
+            { label: 'Approved', value: userSignals.recentApprovalCount, alert: false },
+          ].map((s, i) => (
+            <div key={i} style={{ background: s.alert ? '#450a0a' : '#1f2937', border: `1px solid ${s.alert ? '#dc2626' : '#374151'}`, borderRadius: '12px', padding: '12px', textAlign: 'center' }}>
+              <div style={{ fontSize: '20px', fontWeight: 'bold', color: s.alert ? '#fca5a5' : 'white' }}>{s.value}</div>
+              <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {userSignals.isFirstPost && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', background: '#0c1a3a', border: '1px solid #1d4ed8', borderRadius: '10px', marginBottom: '8px' }}>
+            <span>🆕</span><span style={{ fontSize: '13px', color: '#93c5fd' }}>First post in this community</span>
+          </div>
+        )}
+
+        {userSignals.postingAccelerating && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', background: '#1a0f00', border: '1px solid #c2410c', borderRadius: '10px', marginBottom: '8px' }}>
+            <span>⚡</span><span style={{ fontSize: '13px', color: '#fdba74' }}>Posting frequency is accelerating</span>
+          </div>
+        )}
+
+        {userSignals.uniqueDomains.length > 0 && (
+          <div style={{ padding: '10px 12px', background: '#1f2937', borderRadius: '10px' }}>
+            <p style={{ fontSize: '11px', color: '#9ca3af', margin: '0 0 6px' }}>Domains posted</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              {userSignals.uniqueDomains.map((d, i) => (
+                <span key={i} style={{ fontSize: '11px', background: '#374151', color: '#d1d5db', padding: '2px 8px', borderRadius: '999px', fontFamily: 'monospace' }}>{d}</span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Overview tab */}
-      {activeTab === 'overview' && (
-        <div className="px-5 mt-5 space-y-5">
-          <div>
-            <SectionHeader title={`u/${userSignals.username}`} />
-            <div className="grid grid-cols-3 gap-3">
-              <StatPill
-                label="Account Age"
-                value={userSignals.accountAgeDays < 30 ? `${userSignals.accountAgeDays}d` : `${Math.floor(userSignals.accountAgeDays / 30)}mo`}
-                highlight={userSignals.accountAgeDays < 7}
-              />
-              <StatPill label="Recent Posts" value={userSignals.recentPostCount} />
-              <StatPill label="Removal Rate" value={`${userSignals.removalRate}%`} highlight={userSignals.removalRate >= 50} />
-            </div>
-            <div className="grid grid-cols-2 gap-3 mt-3">
-              <StatPill label="Removed" value={userSignals.recentRemovalCount} highlight={userSignals.recentRemovalCount >= 3} />
-              <StatPill label="Approved" value={userSignals.recentApprovalCount} />
-            </div>
-
-            {userSignals.isFirstPost && (
-              <div className="mt-3 flex items-center gap-2 px-4 py-3 bg-blue-950 border border-blue-700 rounded-xl">
-                <span className="text-blue-400 text-lg">🆕</span>
-                <span className="text-sm text-blue-300">First post in this community</span>
-              </div>
-            )}
-
-            {userSignals.postingAccelerating && (
-              <div className="mt-3 flex items-center gap-2 px-4 py-3 bg-orange-950 border border-orange-700 rounded-xl">
-                <span className="text-orange-400 text-lg">⚡</span>
-                <span className="text-sm text-orange-300">Posting frequency is accelerating</span>
-              </div>
-            )}
-
-            {userSignals.uniqueDomains.length > 0 && (
-              <div className="mt-3 px-4 py-3 bg-gray-800 rounded-xl">
-                <p className="text-xs text-gray-500 mb-2">Domains posted</p>
-                <div className="flex flex-wrap gap-2">
-                  {userSignals.uniqueDomains.map((d, i) => (
-                    <span key={i} className="text-xs bg-gray-700 text-gray-300 px-2 py-0.5 rounded-full font-mono">{d}</span>
-                  ))}
-                </div>
-              </div>
-            )}
+      {/* Mod history */}
+      <div style={{ padding: '0 16px 16px' }}>
+        <p style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '2px', margin: '0 0 10px' }}>
+          Mod History ({modHistory.length})
+        </p>
+        {modHistory.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '20px', color: '#4b5563' }}>
+            <p style={{ fontSize: '24px', margin: '0 0 6px' }}>✓</p>
+            <p style={{ fontSize: '13px', margin: 0 }}>No prior mod actions on this user</p>
           </div>
-
-          {reporters.length > 0 && (
-            <div>
-              <SectionHeader title="Reporter Reliability" />
-              <div className="space-y-2">
-                {reporters.map((r, i) => (
-                  <div key={i} className="flex items-center justify-between px-4 py-3 bg-gray-800 rounded-xl">
-                    <span className="text-sm text-gray-300">u/{r.username}</span>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-gray-500">{r.actionedReports}/{r.totalReports} actioned</span>
-                      <span className={`text-sm font-bold ${r.accuracyRate >= 80 ? 'text-green-400' : r.accuracyRate >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
-                        {r.accuracyRate}%
-                      </span>
-                    </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {modHistory.map((entry, i) => (
+              <div key={i} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', background: '#1f2937', borderRadius: '10px', padding: '10px 12px', border: '1px solid #374151' }}>
+                <span>{actionIcon(entry.action)}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '13px', fontWeight: '600', color: 'white' }}>{ACTION_LABELS[entry.action ?? ''] ?? entry.action ?? 'Action'}</span>
+                    <span style={{ fontSize: '11px', color: '#9ca3af' }}>{entry.date}</span>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* History tab */}
-      {activeTab === 'history' && (
-        <div className="px-5 mt-5">
-          <SectionHeader title="Mod Action Timeline" />
-          {modHistory.length === 0 ? (
-            <div className="text-center py-10 text-gray-600">
-              <p className="text-4xl mb-3">✓</p>
-              <p className="text-sm">No prior mod actions on this user</p>
-            </div>
-          ) : (
-            <div className="relative space-y-0">
-              <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-800" />
-              {modHistory.map((entry, i) => (
-                <div key={i} className="relative flex gap-4 pb-4">
-                  <div className="relative z-10 w-8 h-8 rounded-full bg-gray-800 border-2 border-gray-600 flex items-center justify-center flex-shrink-0 mt-1">
-                    <span className="text-xs">
-                      {entry.action.includes('ban') ? '🔨' : entry.action.includes('remove') ? '🗑' : entry.action.includes('approve') ? '✓' : '📝'}
-                    </span>
-                  </div>
-                  <div className="flex-1 pt-1 pb-2 px-4 bg-gray-800 rounded-xl">
-                    <div className="flex justify-between items-start">
-                      <span className="text-sm font-semibold text-white">
-                        {ACTION_LABELS[entry.action] ?? entry.action}
-                      </span>
-                      <span className="text-xs text-gray-500">{entry.date}</span>
-                    </div>
-                    {entry.description && entry.description !== entry.action && (
-                      <p className="text-xs text-gray-400 mt-1">{entry.description}</p>
-                    )}
-                    <p className="text-xs text-gray-600 mt-1">by u/{entry.mod}</p>
-                  </div>
+                  {entry.description && entry.description !== entry.action && (
+                    <p style={{ fontSize: '11px', color: '#d1d5db', margin: '4px 0 0' }}>{entry.description}</p>
+                  )}
+                  <p style={{ fontSize: '11px', color: '#6b7280', margin: '2px 0 0' }}>by u/{entry.mod}</p>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Fixed action bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-800 px-5 py-4">
-        {actionStatus && (
-          <p className="text-xs text-center text-orange-400 mb-3">{actionStatus}</p>
-        )}
-        <div className="grid grid-cols-4 gap-2">
-          <button onClick={() => takeAction('approve')} disabled={actionLoading}
-            className="py-2 rounded-lg text-sm font-semibold bg-green-800 hover:bg-green-700 text-green-200 transition-colors disabled:opacity-50">
-            Approve
-          </button>
-          <button onClick={() => takeAction('remove')} disabled={actionLoading}
-            className="py-2 rounded-lg text-sm font-semibold bg-red-900 hover:bg-red-800 text-red-200 transition-colors disabled:opacity-50">
-            Remove
-          </button>
-          <button onClick={() => takeAction('mute')} disabled={actionLoading}
-            className="py-2 rounded-lg text-sm font-semibold bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors disabled:opacity-50">
-            Mute
-          </button>
-          <button onClick={() => takeAction('ban', `Verdict: ${summary.plainEnglish}`)} disabled={actionLoading}
-            className="py-2 rounded-lg text-sm font-semibold bg-orange-900 hover:bg-orange-800 text-orange-200 transition-colors disabled:opacity-50">
-            Ban
-          </button>
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#111827', borderTop: '1px solid #1f2937', padding: '12px 16px' }}>
+        {actionStatus && <p style={{ fontSize: '12px', textAlign: 'center', color: '#fb923c', margin: '0 0 8px' }}>{actionStatus}</p>}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px' }}>
+          {[
+            { label: 'Approve', action: 'approve' as const, bg: '#14532d', color: '#bbf7d0' },
+            { label: 'Remove', action: 'remove' as const, bg: '#450a0a', color: '#fecaca' },
+            { label: 'Mute', action: 'mute' as const, bg: '#374151', color: '#e5e7eb' },
+            { label: 'Ban', action: 'ban' as const, bg: '#431407', color: '#fed7aa' },
+          ].map((btn) => (
+            <button
+              key={btn.action}
+              onClick={() => takeAction(btn.action, btn.action === 'ban' ? `Verdict: ${summary.plainEnglish}` : undefined)}
+              disabled={actionLoading}
+              style={{ padding: '10px', borderRadius: '8px', background: btn.bg, color: btn.color, fontSize: '13px', fontWeight: '600', border: 'none', cursor: 'pointer', opacity: actionLoading ? 0.5 : 1 }}
+            >
+              {btn.label}
+            </button>
+          ))}
         </div>
       </div>
     </div>

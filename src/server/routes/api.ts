@@ -141,7 +141,7 @@ api.get('/verdict', async (c) => {
           action: entry.action,
           date: new Date(entry.createdAt).toLocaleDateString(),
           description: entry.description ?? entry.action,
-          mod: entry.moderator?.name ?? 'unknown',
+          mod: entry.moderatorName ?? 'unknown',
         });
       }
     }
