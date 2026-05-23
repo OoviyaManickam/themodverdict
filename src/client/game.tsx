@@ -1,6 +1,7 @@
 import './index.css';
 import { StrictMode, useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
+import { navigateTo } from '@devvit/web/client';
 import type { VerdictData, VerdictActionRequest, InitResponse } from '../shared/api';
 
 const ACTION_LABELS: Record<string, string> = {
@@ -36,12 +37,15 @@ export const App = () => {
   const [error, setError] = useState<string | null>(null);
   const [actionStatus, setActionStatus] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [subredditName, setSubredditName] = useState<string | null>(null);
+  const [actionDone, setActionDone] = useState(false);
 
   useEffect(() => {
     fetch('/api/init')
       .then((r) => r.json())
       .then((init: InitResponse) => {
-        const { targetId, targetType } = init;
+        const { targetId, targetType, subredditName } = init;
+        if (subredditName) setSubredditName(subredditName);
         if (!targetId || !targetType) {
           setError('No target specified. Open Verdict from a post or comment menu.');
           setLoading(false);
@@ -70,6 +74,7 @@ export const App = () => {
       });
       const data = await res.json();
       setActionStatus(data.message);
+      setActionDone(true);
     } catch (e) {
       setActionStatus(`Error: ${e}`);
     } finally {
@@ -210,7 +215,19 @@ export const App = () => {
 
       {/* Fixed action bar */}
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#111827', borderTop: '1px solid #1f2937', padding: '12px 16px' }}>
-        {actionStatus && <p style={{ fontSize: '12px', textAlign: 'center', color: '#fb923c', margin: '0 0 8px' }}>{actionStatus}</p>}
+        {actionStatus && (
+          <div style={{ marginBottom: '8px', textAlign: 'center' }}>
+            <p style={{ fontSize: '12px', color: '#fb923c', margin: '0 0 4px' }}>{actionStatus}</p>
+            {actionDone && subredditName && (
+              <button
+                onClick={() => navigateTo(`https://www.reddit.com/r/${subredditName}/about/modqueue`)}
+                style={{ fontSize: '12px', color: '#60a5fa', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+              >
+                ← Back to mod queue
+              </button>
+            )}
+          </div>
+        )}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px' }}>
           {[
             { label: 'Approve', action: 'approve' as const, bg: '#14532d', color: '#bbf7d0' },

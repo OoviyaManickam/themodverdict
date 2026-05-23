@@ -40,6 +40,7 @@ api.get('/init', async (c) => {
       username: username ?? 'anonymous',
       targetId: target?.targetId ?? null,
       targetType: target?.targetType ?? null,
+      subredditName: context.subredditName ?? null,
     });
   } catch (error) {
     return c.json<ErrorResponse>({ status: 'error', message: `Initialization failed: ${error}` }, 400);

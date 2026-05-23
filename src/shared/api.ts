@@ -5,6 +5,7 @@ export type InitResponse = {
   username: string;
   targetId: string | null;
   targetType: 'post' | 'comment' | null;
+  subredditName: string | null;
 };
 
 export type IncrementResponse = {
