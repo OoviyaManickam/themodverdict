@@ -9,12 +9,18 @@ const ACTION_LABELS: Record<string, string> = {
   removecomment: 'Comment Removed',
   approvelink: 'Post Approved',
   approvecomment: 'Comment Approved',
+  spamlink: 'Flagged as Spam',
+  spamcomment: 'Flagged as Spam',
   banuser: 'Banned',
   unbanuser: 'Unbanned',
   muteuser: 'Muted',
+  unmuteuser: 'Unmuted',
   warnuser: 'Warned',
   addnote: 'Note Added',
+  deletenote: 'Note Deleted',
   note: 'Note',
+  lock: 'Locked',
+  unlock: 'Unlocked',
 };
 
 const riskColor = (level: string) => {
@@ -26,6 +32,7 @@ const riskColor = (level: string) => {
 const actionBorderColor = (action: string | undefined) => {
   const a = action ?? '';
   if (a.includes('ban') || a.includes('remove')) return '#dc2626';
+  if (a.includes('spam')) return '#ea580c';
   if (a.includes('approve')) return '#16a34a';
   return '#374151';
 };

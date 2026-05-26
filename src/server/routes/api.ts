@@ -135,13 +135,15 @@ api.get('/verdict', async (c) => {
     const seen = new Set<string>();
     const modHistory: ModHistoryEntry[] = [];
     for (const entry of userModActions) {
-      const key = `${entry.action}_${entry.createdAt}`;
+      const key = `${(entry as any).type ?? entry.action}_${entry.createdAt}`;
       if (!seen.has(key)) {
         seen.add(key);
+        const rawAction = (entry as any).type ?? entry.action;
+        const isSpamFlag = entry.description?.toLowerCase().includes('spammer') || entry.description?.toLowerCase().includes('spam');
         modHistory.push({
-          action: entry.action,
+          action: isSpamFlag ? 'spamlink' : rawAction,
           date: new Date(entry.createdAt).toLocaleDateString(),
-          description: entry.description ?? entry.action,
+          description: entry.description ?? '',
           mod: entry.moderatorName ?? 'unknown',
         });
       }
